@@ -19,13 +19,15 @@ class DecomposerCommand extends ContainerAwareCommand
 	public $detailLinks; 
 	public $CVElinks; 
 	public $vulns; 
+	public $results = []; 
 
 	protected function configure()
 	{
 		$this
 			->setName('decom:lock')
 			->setDescription('Test a lock file')
-			->addArgument('url', InputArgument::REQUIRED, 'url to lock file to scan')
+			->addArgument('url', InputArgument::OPTIONAL, 'url to lock file to scan')
+			->addOption('scan', null, InputOption::VALUE_NONE, 'scan for urls')
 			;
 	}
 
@@ -41,14 +43,28 @@ class DecomposerCommand extends ContainerAwareCommand
 			$this->showVulnList($response);
 		}
 
+		if($input->getOption('scan')){ 
+			$urls = $this->scan();
+			foreach($urls as $url){ 
+				try{ 
+				$this->output->writeln("################SCANNING $url...");
+				
+				$this->getLockFile($url); 
+				$response = $this->uploadFile(); 
+				$this->showVulnList($response);
+				}catch(\UnexpectedValueException $e){ 
+					$this->output->writeln($e->getMessage());
+				}
+			}
+		}
 	}
 
 
 	private function showVulnList($body){ 
 		$crawler = new \Symfony\Component\DomCrawler\Crawler($body);
 		$vulnerabilities = $crawler->filter('ol')->text();
-		$this->output->writeln($vulnerabilities); 
-
+		//$this->output->writeln($vulnerabilities); 
+		$this->niceVuln = $vulnerabilities; 
 		$lines = explode("\n", $vulnerabilities);
 		$vulns = []; 
 		foreach($lines as $l){ 
@@ -84,14 +100,22 @@ class DecomposerCommand extends ContainerAwareCommand
 	private function getLockFile($url){ 
 		$this->url = $url;
 		$this->output->writeln("Downloading $url");
+
+		try { 
 		$json = file_get_contents($this->url); 
+		}catch(\Symfony\Component\Debug\Exception\ContextErrorException $e){ 
+			$this->output->writeln("Caught exception, problem getting $url");
+			throw new \UnexpectedValueException('Json lock file cannot be fetched'); 
+		}
+
+
 		if(json_decode($json)){ 
 			$this->lockJson = $json;
 			$this->lockFile = $json; 
 			file_put_contents($this->tmpfile, $json); 
 			return true; 
 		}	
-		throw new UnexpectedValueException('Json lock file cannot be decoded'); 
+		throw new \UnexpectedValueException('Json lock file cannot be decoded'); 
 	}
 
 	function getCurlValue($filename, $contentType, $postname)
@@ -129,6 +153,23 @@ class DecomposerCommand extends ContainerAwareCommand
 		$body = substr($result, $header_size);
 		curl_close($ch);
 		return $body; 
+	}
+
+	function scan($start=0){ 
+		$query = "site:www.*.*/composer.lock"; 	
+		$url = "http://ajax.googleapis.com/ajax/services/search/web?v=1.0&rsz=large&start=$start&q=".urlencode($query);
+		$body = file_get_contents($url);
+		$json = json_decode($body);
+		$results = $this->extractResults($json);
+		return $results; 
+	}
+
+	private function extractResults($json){ 
+			$matches = [];
+			foreach($json->responseData->results as $row){ 
+				$matches[] = $row->url;
+			}
+			return $matches; 
 	}
 
 	function __destruct(){
