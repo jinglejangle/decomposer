@@ -16,6 +16,8 @@ class DecomposerCommand extends ContainerAwareCommand
 	private $lockJson; 
 	private $lockFile; 
 	private $tmpfile; 
+	public $detailLinks; 
+	public $CVElinks; 
 	public $vulns; 
 
 	protected function configure()
@@ -57,6 +59,26 @@ class DecomposerCommand extends ContainerAwareCommand
 		}
 		//print_r($vulns);
 		$this->vulns = $vulns; 
+
+
+		$this->output->writeln("#Detail Links: "); 
+		$this->detailLinks = $crawler
+			->filterXpath('//ol/li/a')
+			->extract(array('href'));
+		foreach($this->detailLinks as $link){ 
+			$this->output->writeln($link); 
+		}
+
+
+
+		$this->CVElinks = $crawler
+			->filterXpath('//ol/li/small/a')
+			->extract(array('href'));
+
+		$this->output->writeln("#CVE Links: "); 
+		foreach($this->CVElinks as $link){ 
+			$this->output->writeln($link); 
+		}
 	}
 
 	private function getLockFile($url){ 
