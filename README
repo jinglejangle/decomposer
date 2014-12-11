@@ -2,7 +2,12 @@ usage:
 
 you should never have your composer.lock file available via your webserver, 
 if you do, people might check it for what you are vulnerable to. 
+They might find it by searching google for something like:
 
+site:www.*.*/composer.lock
+
+
+To run this app against a url: 
 
 php app/console decom:lock http://www.example.org/composer.lock 
 
