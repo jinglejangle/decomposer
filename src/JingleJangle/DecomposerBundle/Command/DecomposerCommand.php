@@ -102,17 +102,21 @@ class DecomposerCommand extends ContainerAwareCommand
 		$this->output->writeln("Downloading $url");
 
 		try { 
+
 		$json = file_get_contents($this->url); 
-		}catch(\Symfony\Component\Debug\Exception\ContextErrorException $e){ 
+		}catch(\Exception $e){ 
 			$this->output->writeln("Caught exception, problem getting $url");
 			throw new \UnexpectedValueException('Json lock file cannot be fetched'); 
 		}
 
-
 		if(json_decode($json)){ 
 			$this->lockJson = $json;
 			$this->lockFile = $json; 
-			file_put_contents($this->tmpfile, $json); 
+			try { 
+				file_put_contents($this->tmpfile, $json); 
+			}catch(\Exception $e){ 
+				$this->output->writeln("Caught exception, cannot create $this->tmpfile");
+			}
 			return true; 
 		}	
 		throw new \UnexpectedValueException('Json lock file cannot be decoded'); 
@@ -123,7 +127,7 @@ class DecomposerCommand extends ContainerAwareCommand
 		if (function_exists('curl_file_create')) {
 			return curl_file_create($filename, $contentType, $postname);
 		}
-		$value = "@{$this->filename};filename=" . $postname;
+		$value = "@{$filename};filename=" . $postname;
 		if ($contentType) {
 			$value .= ';type=' . $contentType;
 		}
@@ -133,8 +137,8 @@ class DecomposerCommand extends ContainerAwareCommand
 
 
 	private function uploadFile(){ 
-		$filename = $this->tmpfile; 
-		$cfile = $this->getCurlValue($filename,'text/json','composer.lock');
+		$this->tmpfile; 
+		$cfile = $this->getCurlValue($this->tmpfile,'text/json','composer.lock');
 		$data = array('lock' => $cfile);
 		$ch = curl_init();
 		$options = array(CURLOPT_URL => $this->scanUrl, 
